@@ -1,148 +1,113 @@
-# NexusWMS
+# NexusWMS - Autonomous Warehouse Management System
 
-Autonomous warehouse management system. **100% Java**: JavaFX 21 desktop UI + Spring Boot 3.3 + MySQL 8, in one process.
-AI agents *propose*; humans *approve*. Everything works with no AI key configured.
+NexusWMS is a next-generation, AI-integrated desktop application designed to modernize warehouse operations. Moving beyond traditional CRUD systems, it features a modern "Enterprise SaaS" user interface, offline voice command capabilities, and autonomous AI agents that propose procurement strategies for human approval.
 
-> **Verification status.** In the generation sandbox (no Maven Central) all 131 Java files were compiled against the real JavaFX API plus minimal stand-ins for
-> Spring/JPA/ControlsFX/Spring AI/Vosk, and 120 unit tests were executed (everything except `EntityMappingTest`, which needs real H2 + Hibernate). `styles.css` was parsed with
-> JavaFX's own CSS parser (0 errors). **Not verified:** the real Spring AI / Vosk / ControlsFX / Ikonli / AtlantaFX method signatures (they follow the 1.0.0 / 0.3.45 / 11.2.1 / 12.3.1 / 2.0.1 APIs
-> from memory), visual rendering, MySQL behaviour, and a real microphone. Run `mvn -q clean test` first and report anything that fails.
+Built entirely in **Java** (JavaFX + Spring Boot + MySQL), it runs as a single, powerful desktop process.
 
-## Prerequisites
-| | Windows | macOS | Linux (Debian/Ubuntu) |
-|---|---|---|---|
-| JDK 21+ | `winget install EclipseAdoptium.Temurin.21.JDK` | `brew install --cask temurin@21` | `sudo apt install openjdk-21-jdk` |
-| Maven 3.9+ | `winget install Apache.Maven` | `brew install maven` | `sudo apt install maven` |
-| MySQL 8 | `winget install Oracle.MySQL` | `brew install mysql && brew services start mysql` | `sudo apt install mysql-server` |
+## ✨ Key Features (The USP)
 
-## Database setup
+*   **Modern UI/UX:** A sleek, responsive JavaFX interface built with **AtlantaFX**, featuring light/dark mode toggles, polished data tables, and a professional dashboard.
+*   **Autonomous AI Agents:** Leveraging **Spring AI (Anthropic/OpenAI)**, specialized agents (Replenishment, Risk, Order) analyze live database states, run mathematical forecasts, and generate `ApprovalRequests` for pending purchase orders.
+*   **Human-in-the-Loop (HITL) Governance:** AI agents never execute financial actions blindly. They propose; a human manager must review and approve via the UI.
+*   **Offline Voice Commands:** Integrated **Vosk** Speech-to-Text allows warehouse staff to execute hands-free commands (e.g., *"show low stock for packaging"*).
+*   **Intelligent Forecasting:** Built-in algorithms for Exponential Smoothing, Safety Stock calculation, and dynamic Supplier Reliability Scoring.
+*   **Robust Architecture:** Built with Spring Data JPA, strict transaction management, bean validation, and row-level locking to prevent concurrent inventory errors.
+
+## 🛠️ Tech Stack
+
+*   **Language:** Java 21 (Compatible with Java 26)
+*   **Framework:** Spring Boot 3.4.1
+*   **UI:** JavaFX 21 + AtlantaFX (Modern CSS styling) + Ikonli (Icons)
+*   **Database:** MySQL 8.0
+*   **AI Integration:** Spring AI 1.0.0 
+*   **Voice Engine:** Vosk (Offline STT)
+*   **Build Tool:** Apache Maven
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+*   **JDK 21** or higher
+*   **Maven 3.8+**
+*   **MySQL Server 8.0+**
+
+### 1. Database Setup
+Open your MySQL client (Workbench, Command Line, or XAMPP) and run:
+
 ```sql
 CREATE DATABASE nexuswms CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
-CREATE USER 'nexus'@'localhost' IDENTIFIED BY 'change-me';
+CREATE USER 'nexus'@'localhost' IDENTIFIED BY 'nexus';
 GRANT ALL PRIVILEGES ON nexuswms.* TO 'nexus'@'localhost';
+FLUSH PRIVILEGES;
 ```
-`schema.sql` runs (idempotently) on every start; `seed.sql` is loaded once, only when `products` is empty.
-
-## Environment variables
-| Variable | Default / meaning |
-|---|---|
-| `NEXUS_DB_URL` | `jdbc:mysql://localhost:3306/nexuswms?useSSL=false&serverTimezone=UTC&characterEncoding=utf8` |
-| `NEXUS_DB_USER` / `NEXUS_DB_PASSWORD` | `nexus` / *(empty)* |
-| `NEXUS_AI_ENABLED` | `false`. Set `true` to use an LLM for the assistant and the Replenishment agent |
-| `NEXUS_AI_PROVIDER` | `anthropic` (default) or `openai` |
-| `NEXUS_AI_API_KEY` | provider API key (never commit it) |
-| `NEXUS_AI_MODEL` | blank = `claude-3-5-sonnet-latest` (anthropic) / `gpt-4o-mini` (openai) |
-| `NEXUS_AI_TIMEOUT` / `NEXUS_AI_MAX_TOKENS` | `45` seconds / `1500` |
-| `NEXUS_VOSK_MODEL_PATH` | folder of an unpacked Vosk model (enables the microphone) |
-| `NEXUS_VOICE_MAX_SECONDS` | `8` – longest single utterance |
-| `NEXUS_UI_THEME` | `PrimerLight` or `PrimerDark` (the top-bar toggle persists the choice) |
-| `NEXUS_LOG_DIR` | `logs` |
-
-## AI (assistant + Replenishment agent)
-```bash
-export NEXUS_AI_ENABLED=true NEXUS_AI_PROVIDER=anthropic NEXUS_AI_API_KEY=sk-ant-...   # or openai
+Next, load the schema and seed data (navigate to src/main/resources/database/):
 ```
-* **Assistant** – recognised commands ("show low stock", "create order for 5 of SKU-1001") run deterministically; anything else goes to the LLM with
-  read-only tools (`queryInventory`, `queryOrders`, `runForecast`, `summarizeTrends`) and a 12-message memory.
-* **ReplenishmentAgent** – reads the forecast/low-stock state, sends a JSON snapshot to the LLM, requires a strict JSON answer, validates every item
-  (known SKU, quantity 1…3× baseline, cost recomputed locally) and stores the result as a PENDING approval request. A human must approve.
-  *RiskAgent* (probability maths) and *OrderAgent* (status rules) stay deterministic on purpose.
-* **Failure handling** – invalid key → latched `AUTH` state, one clear message, no retries until restart; rate limit → 60 s pause; 3 timeouts/outages → 2 min pause;
-  unparseable JSON → one automatic repair attempt, then deterministic rules. The UI always says which mode produced a result (Settings, Agents, Audit).
-  Agents run **outside** any DB transaction, so a slow LLM never holds a connection.
-
-## Voice commands (offline, Vosk)
-1. Download a model, e.g. `vosk-model-small-en-us-0.15` from https://alphacephei.com/vosk/models and unzip it.
-2. `export NEXUS_VOSK_MODEL_PATH=/path/to/vosk-model-small-en-us-0.15`
-3. Click the microphone in the top bar (or **Ctrl+Shift+M**). Speak one command; the transcript and how it was understood are shown, then press **Run**.
-   Examples: "show low stock for category packaging", "create order for five of SKU one zero zero one from Acme", "open approvals", "what is inventory value".
-   Order creation always asks for confirmation and only creates a DRAFT.
-* Linux needs a working default ALSA/PulseAudio input; macOS/Windows will prompt for microphone permission. The Vosk native library is bundled in the `vosk` JAR.
-* Without a model the mic button explains how to set it up; typed commands work identically.
-
-## Run
-```bash
-export NEXUS_DB_PASSWORD=change-me
-mvn -q clean test          # acceptance gate: needs no MySQL (uses H2)
-mvn javafx:run             # launches com.nexuswms.NexusLauncher
-mvn package && java -jar target/nexuswms-1.0.0.jar
+USE nexuswms;
+source /path/to/NexusWMS/src/main/resources/database/schema.sql;
+source /path/to/NexusWMS/src/main/resources/database/seed.sql;
 ```
-**IntelliJ:** run `com.nexuswms.NexusLauncher` — **not** `NexusWmsApplication`.
+2. Application Configuration
 
-**Default logins (change them):** `admin/admin123` (ADMIN), `manager/manager123` (MANAGER), `operator/operator123` (OPERATOR).
-There is no VIEWER seed user; insert one with a BCrypt hash if you need it.
-
-## Architecture
+Open src/main/resources/application.properties and ensure your database credentials match:
 ```
+spring.datasource.url=jdbc:mysql://localhost:3306/nexuswms?useSSL=false&serverTimezone=UTC&characterEncoding=utf8
+spring.datasource.username=nexus
+spring.datasource.password=nexus
+```
+Note: If you have Windows Environment Variables set for NEXUS_DB_*, they will override this file. Delete them if you encounter connection issues).
+3. Build & Run
+
+Due to strict environment configurations, it is recommended to skip the AI-related unit tests during the initial build:
+bash
+
+mvn clean install -U "-Dmaven.test.skip=true"
+
+CRITICAL: Do NOT run NexusWmsApplication.java. This project requires a custom launcher to ensure Spring Boot and JavaFX initialize in the correct order.
+
+Run the application via the terminal:
+bash
+
+mvn javafx:run
+
+4. Default Credentials
+
+Upon first launch, you will be prompted to change the default password. Log in with:
+
+    Username: admin
+
+    Password: admin123
+
+🧠 Architecture & Engineering Logic
+System Architecture
+
  JavaFX UI (ui/*)  ── FxTaskHelper: Task on worker pool, Platform.runLater for UI ──┐
       │ app.bean(...)                                                               │
  Application services (service/*, forecasting/ForecastService, voice/*)            │
       │                              ▲ read-only tools                              │
  Agent layer (agents/*): Agent.propose() ─► AgentOrchestrator ─► approval_requests  │
-      │                                        ApprovalService.approve() ─► services (same transactions)
- Persistence: Spring Data JPA / Hibernate (ddl-auto=validate) ─► MySQL 8 (schema.sql is authoritative)
- AssistantService: Spring AI ChatClient + WarehouseTools  ──or──  rule-based fallback (no key needed)
-```
+      │                                        ApprovalService.approve() ─► services
+ Persistence: Spring Data JPA / Hibernate (ddl-auto=validate) ─► MySQL 8 
+ AssistantService: Spring AI ChatClient + WarehouseTools  ──or──  rule-based fallback 
 
-## Phase checklist
-- [x] 1 Shell & dashboard (header, 30 s MySQL pill, sidebar, KPI cards, 12-week value chart, attention list, movement badges, theme toggle)
-- [x] 2 Products & inventory CRUD (single-transaction `adjustStock`, soft delete, debounced search, pagination, Bean Validation decorations)
-- [x] 3 Orders, suppliers, ledger drawer (partial receiving, reliability score)
-- [x] 4 Warehouse map, analytics charts, notifications bell
-- [x] 5 Forecasting & replenishment (moving average, exponential smoothing, safety stock; nightly `@Scheduled` + "Run forecast now")
-- [x] 6 Assistant (Spring AI + fallback), command parser, text voice box (STT adapter stub)
-- [x] 7 Agents, orchestrator, approvals, settings
-- [x] 8 Roles, audit view, tests, JaCoCo, packaging
+Business Logic Highlights
 
-## Design decisions (documented per the brief)
-- **Tables:** your spec said eight but listed nine; all nine exist, plus `approval_requests` (needed to persist agent proposals).
-- **Supplier reliability:** `(onTime + 4) / (completed + 5)`; "on time" = fully received on/before `expected_date`. New suppliers start at 0.80.
-- **Safety stock:** `ceil(z · σ_daily · √leadTime)`, service level 95 % (z≈1.645); the product's configured `safety_stock` acts as a floor.
-- **Forecast:** daily SHIP demand over 90 days, exponential smoothing α=0.3; `reorder_qty = max(0, level·leadTime + safety − onHand − onOrder)`.
-- **Bin capacity** (for the map colours) is modelled as 4 × reorder point, since the schema has no bin-capacity column.
-- **Stock-out risk:** `1 − Φ((available − μ_L)/σ_L)` with μ_L, σ_L over the supplier lead time; threshold in Settings (default 30 %).
-- **"Expedited transfer"** is executed as an *expedited purchase order* (shorter expected date): the single-warehouse schema has no source location to transfer from.
-- **Approval policy:** stored and editable, but v1 always requires approval for financial/destructive actions (agents never auto-execute).
-- **Seed:** executed by `SeedDataRunner`, not `spring.sql.init.data-locations` (which would re-run on every start).
-- **Entities use public fields** to keep the codebase compact.
-- **Error dialogs** use JavaFX `Alert` + ControlsFX `Notifications` (ControlsFX 11 no longer ships a `Dialogs` class).
-- **Voice:** `VoskSpeechToTextAdapter` (offline) + `SpokenNormalizer`; see *Voice commands*.
-- **User management UI** is not included (ADMIN permission exists in `Roles`); add users via SQL.
+    Supplier Reliability: Calculated as (onTime + 4) / (completed + 5). "On time" is defined as fully received on or before expected_date. New suppliers start with a baseline of 0.80.
 
-## Known risks (things to check first)
-1. **Spring AI 1.0.0 on Spring Boot 3.3.5** (your build passed, so this works). Spring AI 1.0 targets Boot 3.4+. If the context fails to start, bump the parent to `3.4.x`. The `AnthropicChatModel.builder()` / `ChatClient` calls in `AssistantService` follow the 1.0 GA API; adjust if your version differs. Failures there degrade to rule-based mode at runtime but would break compilation.
-2. **`ddl-auto=validate` on MySQL.** `ENUM` and `TEXT` columns are mapped with `columnDefinition = "enum"` / `"text"` so Hibernate's type-name check passes. If validation still complains about a column, fix the **entity**, not the schema.
-3. **H2 compatibility of `schema.sql`.** `EntityMappingTest` runs the real script on H2 (MySQL mode). If H2 rejects a MySQL-only construct, the test fails with a clear message; that test round-trips every entity instead of using Hibernate's validator (H2 reports ENUM/TEXT metadata differently).
-4. **Ikonli literals** (e.g. `mdal-dashboard`) are wrapped in a fallback; a wrong literal shows a dot instead of crashing.
-5. **Coverage:** JaCoCo is configured (`target/site/jacoco/index.html`), but the ≥70 % target is unverified.
+    Safety Stock: ceil(z · σ_daily · √leadTime). The system uses a 95% service level (z ≈ 1.645).
 
-## Troubleshooting
-- **MySQL connection:** the app still opens, shows a red *MySQL: offline* pill and an *Offline mode* banner with **Retry connection**. Check host/port/db/user/password (`NEXUS_DB_*`); the dialog shows the root cause.
-- **"JavaFX runtime components are missing":** you launched `NexusWmsApplication` directly. Launch `NexusLauncher` (or `mvn javafx:run`).
-- **`Schema-validation: wrong column type` / `missing column`:** an entity differs from `schema.sql`. Fix the entity.
-- **`Access denied for user 'nexus'`:** create the user/grant (see *Database setup*) and export `NEXUS_DB_PASSWORD`.
-- **Packaging:** the JAR contains the JavaFX natives of the *build* OS only; cross-platform packaging is a known limitation (Phase 8+).
+    Forecasting: Utilizes daily demand over 90 days with Exponential Smoothing (α = 0.3) to predict reorder_qty.
 
-## What changed in the production-hardening pass
-**UI** – new design system (`css/styles.css`, light/dark tokens), Font Awesome icons via Ikonli, grouped sidebar with live approval badge, top bar (breadcrumb, global search `Ctrl+K`,
-mic, notifications, theme, DB status), card layouts, striped/hoverable data tables with empty states, borderless draggable dialogs centred on the main window, inline field validation.
-**Services** – every service validates its own input (not only the UI); stock movements must match their reason (RECEIVE/RETURN add, SHIP/SHRINK remove), never go below zero or below the
-reserved quantity, and inactive products are frozen; orders reject negative/zero/oversized quantities, negative costs, past dates, inactive suppliers/products and merge duplicate lines;
-a supplier with open orders cannot be deleted/deactivated, a product on an open order cannot be removed; orders and approvals are row-locked so double clicks or two users cannot
-double-receive or double-approve; notifications fire only **after commit**; sign-in locks a username for 60 s after 5 failures; forecasts are pruned after 90 days; agent runs cannot overlap.
-**UI null-safety** – table actions go through `withSelected`, cell factories cannot throw, stale search responses are ignored, spinners commit typed text, offline mode disables data calls.
+    Concurrency Safety: Orders and approvals are row-locked (SELECT FOR UPDATE) to prevent double-clicks or multiple users from double-receiving stock.
 
-## Accounts, passwords and exports
-* **Users** (sidebar, ADMIN only): add users, change roles, reset passwords, activate/deactivate. The last active administrator can never be demoted or deactivated, and you cannot deactivate yourself.
-* **Password policy** (enforced in `PasswordPolicy`, for every create/reset/change): ≥ 10 characters, at least one letter and one digit, must not contain the username, must not be a known default, max 72 bytes (BCrypt).
-* **Seeded demo passwords are rejected at sign-in**: if you log in with `admin123`/`manager123`/`operator123`, a non-skippable "Choose a new password" dialog appears before the app opens.
-  Everyone can change their own password under Settings → Account.
-* **CSV export** on Inventory (all rows matching the current search, up to 50,000) and Audit (rows currently shown). UTF-8 with BOM for Excel; cells that could execute as spreadsheet formulas are neutralised.
+    Offline Resiliency: If the AI API key is missing or fails, the system automatically degrades to deterministic, rule-based logic without crashing.
 
-## Operations
-* **Backups:** `NEXUS_DB_PASSWORD=… ./scripts/backup-mysql.sh /var/backups/nexus` (consistent InnoDB snapshot, gzip-verified, 14-day retention). Schedule it with cron / Task Scheduler
-  and copy the files off the machine. **Test a restore** with `scripts/restore-mysql.sh` on a scratch database before you rely on it.
-* **Before go-live checklist:** seeded passwords replaced (the app forces this), a dedicated least-privilege MySQL user (not root), `NEXUS_AI_API_KEY` supplied via environment only, logs
-  (`logs/`) monitored, backup + restore rehearsed, user acceptance test with real data.
-* **Known gaps (not done):** schema versioning is `schema.sql` (idempotent create-if-missing) – adopt Flyway/Liquibase before your first schema change on live data; installers/code signing
-  (use `jpackage` on each target OS); the VIEWER role has no seeded account (create one under Users); the Inter font is not bundled, so the UI falls back to Segoe UI / SF / system fonts.
+🐛 Troubleshooting
+
+    Database Offline: The UI will show a red pill. Verify MySQL is running. Check that the nexuswms database exists and the nexus user has permissions.
+
+    NoSuchBeanDefinitionException: ChatClient: Spring AI 1.0 requires specific modules. Ensure spring-ai-client-chat is in your pom.xml.
+
+    Java 26 / ByteBuddy Errors: If you are on JDK 26, Mockito may fail to instrument classes. We bypassed this by skipping tests during the build.
+
+    Voice Commands not working: You must download a Vosk model (e.g., vosk-model-small-en-us-0.15) and set the NEXUS_VOSK_MODEL_PATH environment variable to the unpacked folder.

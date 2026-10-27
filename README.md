@@ -1,113 +1,301 @@
-# NexusWMS - Autonomous Warehouse Management System
+# NEXUS WMS
+### Intelligent Warehouse Management System
 
-NexusWMS is a next-generation, AI-integrated desktop application designed to modernize warehouse operations. Moving beyond traditional CRUD systems, it features a modern "Enterprise SaaS" user interface, offline voice command capabilities, and autonomous AI agents that propose procurement strategies for human approval.
+**A modern, multi-tenant warehouse management platform designed to streamline inventory operations, order fulfillment, and warehouse traceability.**
 
-Built entirely in **Java** (JavaFX + Spring Boot + MySQL), it runs as a single, powerful desktop process.
+NEXUS WMS is an enterprise-oriented warehouse management system built to manage inventory movement and operational workflows through a structured, secure, and auditable platform.
 
-## ✨ Key Features (The USP)
+The system combines a responsive web interface, a modular backend, transactional inventory management, and a mobile-friendly scanning experience to support warehouse operations from receiving goods to dispatching shipments.
 
-*   **Modern UI/UX:** A sleek, responsive JavaFX interface built with **AtlantaFX**, featuring light/dark mode toggles, polished data tables, and a professional dashboard.
-*   **Autonomous AI Agents:** Leveraging **Spring AI (Anthropic/OpenAI)**, specialized agents (Replenishment, Risk, Order) analyze live database states, run mathematical forecasts, and generate `ApprovalRequests` for pending purchase orders.
-*   **Human-in-the-Loop (HITL) Governance:** AI agents never execute financial actions blindly. They propose; a human manager must review and approve via the UI.
-*   **Offline Voice Commands:** Integrated **Vosk** Speech-to-Text allows warehouse staff to execute hands-free commands (e.g., *"show low stock for packaging"*).
-*   **Intelligent Forecasting:** Built-in algorithms for Exponential Smoothing, Safety Stock calculation, and dynamic Supplier Reliability Scoring.
-*   **Robust Architecture:** Built with Spring Data JPA, strict transaction management, bean validation, and row-level locking to prevent concurrent inventory errors.
+## ✨ Key Features
 
-## 🛠️ Tech Stack
+### 📦 Inventory Management
+- Track inventory balances and stock movements.
+- Maintain an inventory ledger for operational traceability.
+- Support receiving, transfers, cycle counts, and returns.
+- Apply FIFO and FEFO allocation strategies.
+- Track lots and serial numbers where supported.
 
-*   **Language:** Java 21 (Compatible with Java 26)
-*   **Framework:** Spring Boot 3.4.1
-*   **UI:** JavaFX 21 + AtlantaFX (Modern CSS styling) + Ikonli (Icons)
-*   **Database:** MySQL 8.0
-*   **AI Integration:** Spring AI 1.0.0 
-*   **Voice Engine:** Vosk (Offline STT)
-*   **Build Tool:** Apache Maven
+### 🚚 Warehouse Operations
+- Record and process incoming inventory.
+- Allocate inventory for order fulfillment.
+- Support scan-confirmed picking workflows.
+- Manage shipment dispatch.
+- Track transfers, partial receipts, and inventory adjustments.
+- Handle returns and disposition workflows.
 
----
+### 🏢 Multi-Tenant Architecture
+- Support organization and warehouse-specific access scopes.
+- Apply role-based access control.
+- Restrict operations according to permissions.
+- Maintain audit records for important operations.
+
+### 📱 Mobile-Friendly Workflows
+- Responsive interfaces for desktop and mobile devices.
+- Progressive Web App (PWA) support for warehouse workflows.
+- Scan-oriented picking and inventory operations.
+- Localization support, including right-to-left interfaces.
+
+### 🔐 Reliability and Security
+- Database-backed sessions.
+- Scoped authorization.
+- Transactional inventory operations.
+- Idempotent commands to reduce duplicate processing.
+- Structured error handling and request correlation.
+- Audit and outbox records for supported operations.
+
+### 🌐 Enterprise Web Interface
+- Modern dashboard and inventory views.
+- Global search.
+- Keyboard-accessible command palette.
+- Light and dark themes.
+- Multilingual interface support.
+
+## 🛠️ Technology Stack
+
+| Layer | Technologies |
+|---|---|
+| Frontend | Next.js, React, TypeScript |
+| Backend | NestJS, Node.js, TypeScript |
+| Database | PostgreSQL |
+| ORM | Prisma |
+| Caching and infrastructure | Redis |
+| Object storage infrastructure | MinIO |
+| API documentation | OpenAPI |
+| Monorepo management | pnpm Workspaces, Turborepo |
+| Testing | Vitest, Playwright |
+| Deployment infrastructure | Docker Compose |
+
+## 🏗️ Architecture
+
+NEXUS WMS follows a modular monorepo architecture.
+
+```text
+                    NEXUS WMS
+                        |
+          +-------------+-------------+
+          |                           |
+     Web Application             REST API
+     Next.js / React             NestJS
+          |                           |
+          |                    +------+------+
+          |                    |             |
+          |                 Domain        Prisma
+          |                 Logic           |
+          |                                 |
+          +--------------------------- PostgreSQL
+                                           |
+                                   Inventory Ledger
+                                           |
+                              Audit / Outbox Records
+
+          Supporting Infrastructure
+             Redis | MinIO | Docker
+```
+
+### Core Components
+
+- **Web Application:** Provides the responsive user interface for warehouse operators and administrators.
+- **REST API:** Handles requests, authorization, and operational workflows.
+- **Domain Layer:** Encapsulates inventory rules, allocation logic, quantity handling, and permission checks.
+- **Database Layer:** Uses PostgreSQL and Prisma for persistent data and transactional operations.
+- **Supporting Services:** Redis and MinIO provide infrastructure for supported application needs.
+
+## 🔄 How It Works
+
+A typical inventory fulfillment workflow follows these steps:
+
+1. **Receive:** Record incoming goods.
+2. **Update Inventory:** Persist the corresponding inventory changes.
+3. **Allocate:** Select suitable inventory for an order using the configured allocation strategy.
+4. **Pick:** Confirm the required items through the picking workflow.
+5. **Dispatch:** Process the shipment using the supported dispatch operation.
+6. **Audit:** Maintain relevant inventory and operational records.
+
+The platform also supports workflows for stock transfers, cycle counts, returns, and lot or serial traceability.
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-*   **JDK 21** or higher
-*   **Maven 3.8+**
-*   **MySQL Server 8.0+**
 
-### 1. Database Setup
-Open your MySQL client (Workbench, Command Line, or XAMPP) and run:
+Install the following tools before running the project:
 
-```sql
-CREATE DATABASE nexuswms CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
-CREATE USER 'nexus'@'localhost' IDENTIFIED BY 'nexus';
-GRANT ALL PRIVILEGES ON nexuswms.* TO 'nexus'@'localhost';
-FLUSH PRIVILEGES;
+- Node.js 24 LTS
+- pnpm 11
+- Docker Desktop or Docker Engine
+- Git
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/A-creator-collab/NexusWMS.git
 ```
-Next, load the schema and seed data (navigate to src/main/resources/database/):
+
+### 2. Navigate to the Project
+
+```bash
+cd NexusWMS
 ```
-USE nexuswms;
-source /path/to/NexusWMS/src/main/resources/database/schema.sql;
-source /path/to/NexusWMS/src/main/resources/database/seed.sql;
+
+### 3. Configure Environment Variables
+
+Copy the example environment files:
+
+```bash
+cp .env.example .env
+cp .env.example apps/api/.env
 ```
-2. Application Configuration
 
-Open src/main/resources/application.properties and ensure your database credentials match:
+On Windows, you can also copy these files manually using File Explorer.
+
+Review the environment variables and update any settings required for your local setup.
+
+### 4. Install Dependencies
+
+```bash
+pnpm install
 ```
-spring.datasource.url=jdbc:mysql://localhost:3306/nexuswms?useSSL=false&serverTimezone=UTC&characterEncoding=utf8
-spring.datasource.username=nexus
-spring.datasource.password=nexus
+
+### 5. Start Supporting Services
+
+```bash
+docker compose up -d postgres redis minio
 ```
-Note: If you have Windows Environment Variables set for NEXUS_DB_*, they will override this file. Delete them if you encounter connection issues).
-3. Build & Run
 
-Due to strict environment configurations, it is recommended to skip the AI-related unit tests during the initial build:
-bash
+### 6. Generate the Database Client
 
-mvn clean install -U "-Dmaven.test.skip=true"
+```bash
+pnpm db:generate
+```
 
-CRITICAL: Do NOT run NexusWmsApplication.java. This project requires a custom launcher to ensure Spring Boot and JavaFX initialize in the correct order.
+### 7. Apply Database Migrations
 
-Run the application via the terminal:
-bash
+```bash
+pnpm db:migrate
+```
 
-mvn javafx:run
+### 8. Seed Development Data
 
-4. Default Credentials
+```bash
+pnpm db:seed
+```
 
-Upon first launch, you will be prompted to change the default password. Log in with:
+Run the seed command only in an appropriate development environment. Review its reset behavior before using it against any existing database.
 
-    Username: admin
+### 9. Build the Project
 
-    Password: admin123
+```bash
+pnpm build
+```
 
-🧠 Architecture & Engineering Logic
-System Architecture
+### 10. Start the Applications
 
- JavaFX UI (ui/*)  ── FxTaskHelper: Task on worker pool, Platform.runLater for UI ──┐
-      │ app.bean(...)                                                               │
- Application services (service/*, forecasting/ForecastService, voice/*)            │
-      │                              ▲ read-only tools                              │
- Agent layer (agents/*): Agent.propose() ─► AgentOrchestrator ─► approval_requests  │
-      │                                        ApprovalService.approve() ─► services
- Persistence: Spring Data JPA / Hibernate (ddl-auto=validate) ─► MySQL 8 
- AssistantService: Spring AI ChatClient + WarehouseTools  ──or──  rule-based fallback 
+Open two separate terminals from the project root.
 
-Business Logic Highlights
+**Terminal 1 — Backend API**
 
-    Supplier Reliability: Calculated as (onTime + 4) / (completed + 5). "On time" is defined as fully received on or before expected_date. New suppliers start with a baseline of 0.80.
+```bash
+pnpm --filter @nexus/api start
+```
 
-    Safety Stock: ceil(z · σ_daily · √leadTime). The system uses a 95% service level (z ≈ 1.645).
+**Terminal 2 — Frontend**
 
-    Forecasting: Utilizes daily demand over 90 days with Exponential Smoothing (α = 0.3) to predict reorder_qty.
+```bash
+pnpm --filter @nexus/web start
+```
 
-    Concurrency Safety: Orders and approvals are row-locked (SELECT FOR UPDATE) to prevent double-clicks or multiple users from double-receiving stock.
+Open the application at:
 
-    Offline Resiliency: If the AI API key is missing or fails, the system automatically degrades to deterministic, rule-based logic without crashing.
+`http://localhost:3000/en/login`
 
-🐛 Troubleshooting
+For the development demo account, consult the repository's seed configuration and documentation.
 
-    Database Offline: The UI will show a red pill. Verify MySQL is running. Check that the nexuswms database exists and the nexus user has permissions.
+## 🧪 Testing and Verification
 
-    NoSuchBeanDefinitionException: ChatClient: Spring AI 1.0 requires specific modules. Ensure spring-ai-client-chat is in your pom.xml.
+Run the available quality checks from the project root:
 
-    Java 26 / ByteBuddy Errors: If you are on JDK 26, Mockito may fail to instrument classes. We bypassed this by skipping tests during the build.
+```bash
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
+```
 
-    Voice Commands not working: You must download a Vosk model (e.g., vosk-model-small-en-us-0.15) and set the NEXUS_VOSK_MODEL_PATH environment variable to the unpacked folder.
+To run end-to-end acceptance tests:
+
+```bash
+pnpm db:seed
+pnpm test:e2e
+```
+
+Ensure the required infrastructure and application processes are running before executing the end-to-end tests.
+
+These checks help validate type safety, code quality, automated tests, build integrity, and supported operational workflows.
+
+## 🔌 Development Endpoints
+
+| Service | Local Address |
+|---|---|
+| Web Application | `http://localhost:3000` |
+| API | `http://localhost:4000/api/v1` |
+| OpenAPI Documentation | `http://localhost:4000/api/docs` |
+| OpenAPI JSON | `http://localhost:4000/api/docs-json` |
+| PostgreSQL | `localhost:5434` |
+| Redis | `localhost:6381` |
+| MinIO API | `localhost:9002` |
+| MinIO Console | `http://localhost:9003` |
+
+These addresses reflect the repository's documented local development configuration.
+
+## 🛣️ Future Roadmap
+
+Potential areas for further development include:
+
+- AI-assisted demand forecasting.
+- Intelligent replenishment recommendations.
+- Agent-based warehouse operations.
+- Voice-controlled inventory commands.
+- Natural-language product search.
+- Predictive stockout detection.
+- Advanced warehouse analytics.
+- Expanded offline scanning and synchronization.
+- Integration with external commerce and logistics systems.
+
+These capabilities are proposed extensions, not claims that they are already implemented.
+
+## 📌 Project Scope
+
+NEXUS WMS provides a production-oriented core for warehouse management and a demonstration deployment.
+
+Not every enterprise capability is complete. Refer to `docs/FEATURE_MATRIX.md` for the implementation status of individual features.
+
+Optional integrations and advanced capabilities should be treated according to their documented implementation status and release requirements.
+
+## 🤝 Contributing
+
+Contributions that improve reliability, usability, documentation, testing, or warehouse workflows are welcome.
+
+A typical contribution workflow is:
+
+1. Fork the repository.
+2. Create a feature branch.
+3. Implement and test your changes.
+4. Submit a pull request with a clear description.
+
+Please follow the repository's existing development conventions.
+
+## 📄 License
+
+This project includes a license file in the repository. Refer to `LICENSE` for the applicable terms.
+
+## 👨‍💻 Author
+
+**Atharv Singh**
+
+GitHub: [A-creator-collab](https://github.com/A-creator-collab)
+
+Project: [NEXUS WMS](https://github.com/A-creator-collab/NexusWMS)
+
+---
+
+**NEXUS WMS — Bringing structure, traceability, and reliability to warehouse operations.**
